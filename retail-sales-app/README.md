@@ -87,3 +87,9 @@ This app is designed to be deployed as a Databricks App. Use the `app.yaml` conf
 - Pydantic
 
 See `requirements.txt` for full dependencies.
+
+## Databricks App - Genie Deployment
+
+[Add a Genie Space resource to a Databricks app](https://learn.microsoft.com/en-us/azure/databricks/dev-tools/databricks-apps/genie)
+
+> **Warning:** The app's service principal also needs appropriate permissions on the underlying data sources that the Genie Space queries. This typically includes USE CATALOG, USE SCHEMA, and SELECT permissions on the relevant Unity Catalog tables and views.

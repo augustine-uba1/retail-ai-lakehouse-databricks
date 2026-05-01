@@ -5,3 +5,7 @@ command:
   - 0.0.0.0
   - --port
   - "$DATABRICKS_APP_PORT"
+
+env:
+  - name: GENIE_SPACE_ID
+    valueFrom: genie-space
