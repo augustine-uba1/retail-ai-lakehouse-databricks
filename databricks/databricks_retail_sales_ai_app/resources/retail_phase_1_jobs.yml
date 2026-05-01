@@ -1,0 +1,104 @@
+resources:
+  jobs:
+    retail_01_setup_lakehouse_job:
+      name: retail_01_setup_lakehouse_job
+
+      parameters:
+        - name: catalog_name
+          default: ${var.catalog_name}
+
+      tasks:
+        - task_key: create_catalog
+          sql_task:
+            warehouse_id: ${var.sql_warehouse_id}
+            file:
+              path: ${workspace.file_path}/sql/setup/01_create_catalog.sql
+              source: WORKSPACE
+            parameters:
+              catalog_name: "{{job.parameters.catalog_name}}"
+
+        - task_key: create_schemas
+          depends_on:
+            - task_key: create_catalog
+          sql_task:
+            warehouse_id: ${var.sql_warehouse_id}
+            file:
+              path: ${workspace.file_path}/sql/setup/02_create_schemas.sql
+              source: WORKSPACE
+            parameters:
+              catalog_name: "{{job.parameters.catalog_name}}"
+
+        - task_key: create_tables
+          depends_on:
+            - task_key: create_schemas
+          sql_task:
+            warehouse_id: ${var.sql_warehouse_id}
+            file:
+              path: ${workspace.file_path}/sql/setup/03_create_tables.sql
+              source: WORKSPACE
+            parameters:
+              catalog_name: "{{job.parameters.catalog_name}}"
+
+    retail_02_build_lakehouse_job:
+      name: retail_02_build_lakehouse_job
+
+      parameters:
+        - name: catalog_name
+          default: ${var.catalog_name}
+
+      tasks:
+        - task_key: populate_bronze_dummy_data
+          sql_task:
+            warehouse_id: ${var.sql_warehouse_id}
+            file:
+              path: ${workspace.file_path}/sql/phase_1_build/01_populate_bronze_dummy_data.sql
+              source: WORKSPACE
+            parameters:
+              catalog_name: "{{job.parameters.catalog_name}}"
+
+        - task_key: build_silver
+          depends_on:
+            - task_key: populate_bronze_dummy_data
+          sql_task:
+            warehouse_id: ${var.sql_warehouse_id}
+            file:
+              path: ${workspace.file_path}/sql/phase_1_build/02_build_silver_tables.sql
+              source: WORKSPACE
+            parameters:
+              catalog_name: "{{job.parameters.catalog_name}}"
+
+        - task_key: build_gold
+          depends_on:
+            - task_key: build_silver
+          sql_task:
+            warehouse_id: ${var.sql_warehouse_id}
+            file:
+              path: ${workspace.file_path}/sql/phase_1_build/03_build_gold_tables.sql
+              source: WORKSPACE
+            parameters:
+              catalog_name: "{{job.parameters.catalog_name}}"
+
+        - task_key: validate_lakehouse
+          depends_on:
+            - task_key: build_gold
+          sql_task:
+            warehouse_id: ${var.sql_warehouse_id}
+            file:
+              path: ${workspace.file_path}/sql/phase_1_build/04_validate_lakehouse.sql
+              source: WORKSPACE
+            parameters:
+              catalog_name: "{{job.parameters.catalog_name}}"
+
+    retail_phase_1_orchestrator_job:
+      name: retail_phase_1_orchestrator_job
+
+      tasks:
+        - task_key: setup_lakehouse
+          run_job_task:
+            job_id: ${resources.jobs.retail_01_setup_lakehouse_job.id}
+
+        - task_key: build_lakehouse
+          depends_on:
+            - task_key: setup_lakehouse
+          run_job_task:
+            job_id: ${resources.jobs.retail_02_build_lakehouse_job.id}

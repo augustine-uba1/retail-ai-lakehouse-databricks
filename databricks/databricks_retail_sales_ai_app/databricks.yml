@@ -1,0 +1,39 @@
+# This is a Databricks asset bundle definition for databricks_retail_sales_ai_app.
+# See https://docs.databricks.com/dev-tools/bundles/index.html for documentation.
+bundle:
+  name: databricks_retail_sales_ai_app
+  uuid: 3bd90cc5-b2df-42be-81d2-32ea3f9ef3bd
+
+include:
+  - resources/*.yml
+  - resources/*/*.yml
+
+variables:
+  catalog_name:
+    description: "Unity Catalog catalog for the retail AI demo"
+    default: "retail_ai_demo_dev"
+
+  sql_warehouse_id:
+    description: "SQL Warehouse ID used to run setup and transformation SQL tasks"
+    default: "d812981d3574ec53"
+
+targets:
+  dev:
+    # The default target uses 'mode: development' to create a development copy.
+    # - Deployed resources get prefixed with '[dev my_user_name]'
+    # - Any job schedules and triggers are paused by default.
+    # See also https://docs.databricks.com/dev-tools/bundles/deployment-modes.html.
+    mode: development
+    default: true
+    workspace:
+      host: https://adb-7405607924725170.10.azuredatabricks.net
+
+  prod:
+    mode: production
+    workspace:
+      host: https://adb-7405607924725170.10.azuredatabricks.net
+      # We explicitly deploy to /Workspace/Users/austineuba@austineubgmail.onmicrosoft.com to make sure we only have a single copy.
+      root_path: /Workspace/Users/austineuba@austineubgmail.onmicrosoft.com/.bundle/${bundle.name}/${bundle.target}
+    permissions:
+      - user_name: austineuba@austineubgmail.onmicrosoft.com
+        level: CAN_MANAGE
