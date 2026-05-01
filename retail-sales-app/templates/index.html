@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <title>{{ app_title }}</title>
+
+  <link rel="stylesheet" href="{{ url_for('static', path='css/styles.css') }}" />
+</head>
+<body>
+  <header class="app-header">
+    <div>
+      <h1>Retail Sales Intelligence</h1>
+      <p>Databricks App shell for Genie, RAG, and Agentic AI integration</p>
+    </div>
+    <span class="phase-badge">Phase 2</span>
+  </header>
+
+  <main class="container">
+    <section class="hero-card">
+      <h2>Retail AI Assistant</h2>
+      <p>
+        This app will eventually allow users to ask questions about sales,
+        products, stores, inventory, promotions, returns, and customer feedback.
+      </p>
+    </section>
+
+    <section class="kpi-grid" id="kpi-grid">
+      <article class="kpi-card">
+        <span>Total Sales</span>
+        <strong id="total-sales">Loading...</strong>
+      </article>
+
+      <article class="kpi-card">
+        <span>Orders</span>
+        <strong id="orders">Loading...</strong>
+      </article>
+
+      <article class="kpi-card">
+        <span>Returns Rate</span>
+        <strong id="returns-rate">Loading...</strong>
+      </article>
+
+      <article class="kpi-card">
+        <span>Low Stock Items</span>
+        <strong id="low-stock-items">Loading...</strong>
+      </article>
+    </section>
+
+    <section class="panel-grid">
+      <article class="panel">
+        <h3>Ask Sales Data</h3>
+        <p>Future Genie integration for structured analytics questions.</p>
+        <button disabled>Genie coming in Phase 4</button>
+      </article>
+
+      <article class="panel">
+        <h3>Ask Knowledge Base</h3>
+        <p>Future Vector Search RAG integration for policies, playbooks, and product notes.</p>
+        <button disabled>RAG coming in Phase 5</button>
+      </article>
+
+      <article class="panel">
+        <h3>Ask Retail AI Agent</h3>
+        <p>Future agentic process that chooses between Genie, RAG, or both.</p>
+        <button disabled>Agent coming in Phase 6</button>
+      </article>
+    </section>
+
+    <section class="chat-card">
+      <h3>Chat Placeholder</h3>
+
+      <div id="chat-window" class="chat-window">
+        <div class="message system">
+          Ask a sample retail question. For now, this returns a mocked Phase 2 response.
+        </div>
+      </div>
+
+      <form id="chat-form" class="chat-form">
+        <input
+          id="question-input"
+          type="text"
+          placeholder="Example: Why did sales drop in Manchester last month?"
+          required
+        />
+        <button type="submit">Ask</button>
+      </form>
+    </section>
+  </main>
+
+  <script src="{{ url_for('static', path='js/app.js') }}"></script>
+</body>
+</html>
