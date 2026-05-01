@@ -6,74 +6,63 @@
 
   <title>{{ app_title }}</title>
 
-  <link rel="stylesheet" href="{{ url_for('static', path='css/styles.css') }}" />
+  <link
+    rel="stylesheet"
+    href="{{ url_for('static', path='/css/styles.css') }}?v=phase4"
+  />
 </head>
+
 <body>
-  <header class="app-header">
-    <div>
-      <h1>Retail Sales Intelligence</h1>
-      <p>Databricks App shell for Genie, RAG, and Agentic AI integration</p>
-    </div>
-    <span class="phase-badge">Phase 2</span>
-  </header>
+  <main class="page">
+    <header class="hero">
+      <div>
+        <p class="eyebrow">Databricks Retail AI Demo</p>
+        <h1>Retail Sales Intelligence</h1>
+        <p class="hero-text">
+          A Databricks App for retail analytics, Genie-powered sales questions,
+          and future RAG / agentic AI integration.
+        </p>
+      </div>
+    </header>
 
-  <main class="container">
-    <section class="hero-card">
-      <h2>Retail AI Assistant</h2>
-      <p>
-        This app will eventually allow users to ask questions about sales,
-        products, stores, inventory, promotions, returns, and customer feedback.
+    <section class="kpi-grid">
+      <div class="card kpi-card">
+        <p class="kpi-label">Total Sales</p>
+        <h2 id="total-sales">Loading...</h2>
+      </div>
+
+      <div class="card kpi-card">
+        <p class="kpi-label">Orders</p>
+        <h2 id="orders">Loading...</h2>
+      </div>
+
+      <div class="card kpi-card">
+        <p class="kpi-label">Returns Rate</p>
+        <h2 id="returns-rate">Loading...</h2>
+      </div>
+
+      <div class="card kpi-card">
+        <p class="kpi-label">Low Stock Items</p>
+        <h2 id="low-stock-items">Loading...</h2>
+      </div>
+    </section>
+
+    <section class="card chat-card">
+      <div class="section-header">
+        <div>
+          <p class="eyebrow">Phase 4</p>
+          <h2>Ask Sales Data with Databricks Genie</h2>
+        </div>
+      </div>
+
+      <p class="section-text">
+        Ask a retail sales question. This sends your question from the FastAPI
+        Databricks App to your Databricks Genie Space.
       </p>
-    </section>
-
-    <section class="kpi-grid" id="kpi-grid">
-      <article class="kpi-card">
-        <span>Total Sales</span>
-        <strong id="total-sales">Loading...</strong>
-      </article>
-
-      <article class="kpi-card">
-        <span>Orders</span>
-        <strong id="orders">Loading...</strong>
-      </article>
-
-      <article class="kpi-card">
-        <span>Returns Rate</span>
-        <strong id="returns-rate">Loading...</strong>
-      </article>
-
-      <article class="kpi-card">
-        <span>Low Stock Items</span>
-        <strong id="low-stock-items">Loading...</strong>
-      </article>
-    </section>
-
-    <section class="panel-grid">
-      <article class="panel">
-        <h3>Ask Sales Data</h3>
-        <p>Future Genie integration for structured analytics questions.</p>
-        <button disabled>Genie coming in Phase 4</button>
-      </article>
-
-      <article class="panel">
-        <h3>Ask Knowledge Base</h3>
-        <p>Future Vector Search RAG integration for policies, playbooks, and product notes.</p>
-        <button disabled>RAG coming in Phase 5</button>
-      </article>
-
-      <article class="panel">
-        <h3>Ask Retail AI Agent</h3>
-        <p>Future agentic process that chooses between Genie, RAG, or both.</p>
-        <button disabled>Agent coming in Phase 6</button>
-      </article>
-    </section>
-
-    <section class="chat-card">
-      <h3>Chat Placeholder</h3>
 
       <div id="chat-window" class="chat-window">
-        <div class="message system">
-          Ask a sample retail question. For now, this returns a mocked Phase 2 response.
+        <div class="message assistant">
+          Try asking: “What were the top 10 products by revenue?”
         </div>
       </div>
 
@@ -81,14 +70,53 @@
         <input
           id="question-input"
           type="text"
-          placeholder="Example: Why did sales drop in Manchester last month?"
-          required
+          placeholder="Example: Which stores missed their sales target?"
+          autocomplete="off"
         />
-        <button type="submit">Ask</button>
+
+        <button type="submit">
+          Ask
+        </button>
       </form>
+    </section>
+
+    <section class="card roadmap-card">
+      <h2>Project Roadmap</h2>
+
+      <div class="roadmap">
+        <div class="roadmap-item done">
+          <span>1</span>
+          <p>Create Databricks App shell</p>
+        </div>
+
+        <div class="roadmap-item done">
+          <span>2</span>
+          <p>Create retail lakehouse data model</p>
+        </div>
+
+        <div class="roadmap-item done">
+          <span>3</span>
+          <p>Create Genie Space for structured analytics</p>
+        </div>
+
+        <div class="roadmap-item active">
+          <span>4</span>
+          <p>Integrate Genie into the Databricks App</p>
+        </div>
+
+        <div class="roadmap-item">
+          <span>5</span>
+          <p>Create Vector Search index for RAG</p>
+        </div>
+
+        <div class="roadmap-item">
+          <span>6</span>
+          <p>Build agentic process using Genie and RAG</p>
+        </div>
+      </div>
     </section>
   </main>
 
-  <script src="{{ url_for('static', path='js/app.js') }}"></script>
+  <script src="{{ url_for('static', path='/js/app.js') }}?v=phase4"></script>
 </body>
 </html>
