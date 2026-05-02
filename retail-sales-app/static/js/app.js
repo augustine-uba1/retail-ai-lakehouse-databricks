@@ -1,18 +1,5 @@
 console.log("Phase 4 app.js loaded - debug 2");
 
-document.addEventListener("DOMContentLoaded", () => {
-  const page = document.querySelector(".page");
-
-  if (page) {
-    const debugBanner = document.createElement("div");
-    debugBanner.textContent = "DEBUG: app.js is running";
-    debugBanner.style.padding = "10px";
-    debugBanner.style.margin = "10px 0";
-    debugBanner.style.border = "2px solid green";
-    page.prepend(debugBanner);
-  }
-});
-
 async function loadKpis() {
   console.log("Loading KPIs...");
 
