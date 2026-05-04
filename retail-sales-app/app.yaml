@@ -10,11 +10,11 @@ env:
   - name: GENIE_SPACE_ID
     valueFrom: genie-space
 
-  - name: VECTOR_SEARCH_ENDPOINT_NAME
-    value: retail_ai_vs_endpoint
-
   - name: VECTOR_SEARCH_INDEX_NAME
-    value: retail_ai_demo_dev.ai.retail_knowledge_index
+    valueFrom: vector-search-index
+
+  - name: EMBEDDING_MODEL_NAME
+    value: sentence-transformers/all-MiniLM-L6-v2
 
   - name: LLM_ENDPOINT_NAME
     value: databricks-gpt-oss-20b

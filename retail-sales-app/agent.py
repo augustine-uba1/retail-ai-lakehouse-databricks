@@ -1,10 +1,12 @@
 import os
 from enum import Enum
+from functools import lru_cache
 from typing import Any, Dict, List, Optional
 
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.service.serving import ChatMessage, ChatMessageRole
 from pydantic import BaseModel
+from sentence_transformers import SentenceTransformer
 
 
 class AgentRoute(str, Enum):
@@ -36,18 +38,21 @@ class AgentResponse(BaseModel):
 w = WorkspaceClient()
 
 GENIE_SPACE_ID = os.getenv("GENIE_SPACE_ID")
-VECTOR_SEARCH_ENDPOINT_NAME = os.getenv("VECTOR_SEARCH_ENDPOINT_NAME")
-VECTOR_SEARCH_INDEX_NAME = os.getenv("VECTOR_SEARCH_INDEX_NAME")
+VECTOR_SEARCH_INDEX_NAME = os.getenv(
+    "VECTOR_SEARCH_INDEX_NAME",
+    "retail_ai_demo_dev.ai.retail_knowledge_index",
+)
 LLM_ENDPOINT_NAME = os.getenv("LLM_ENDPOINT_NAME", "databricks-gpt-oss-20b")
+
+# This MUST match the model used in Phase 5.
+# Your notebook used this model and produced 384-dimensional vectors.
+EMBEDDING_MODEL_NAME = os.getenv(
+    "EMBEDDING_MODEL_NAME",
+    "sentence-transformers/all-MiniLM-L6-v2",
+)
 
 
 def _as_dict(obj: Any) -> Dict[str, Any]:
-    """
-    Convert Databricks SDK objects to dictionaries where possible.
-
-    Some SDK response objects expose .as_dict(), while others expose
-    fields as attributes. This helper lets us handle both safely.
-    """
     if obj is None:
         return {}
 
@@ -64,9 +69,6 @@ def _as_dict(obj: Any) -> Dict[str, Any]:
 
 
 def _get_value(obj: Any, field_name: str, default: Any = None) -> Any:
-    """
-    Safely read a field from either a dict or an SDK object.
-    """
     if obj is None:
         return default
 
@@ -77,13 +79,9 @@ def _get_value(obj: Any, field_name: str, default: Any = None) -> Any:
 
 
 def _extract_llm_answer(response: Any) -> str:
-    """
-    Safely extract text from a Databricks model serving chat response.
-    """
     if response is None:
         return "No response returned from the LLM endpoint."
 
-    # Normal SDK object path
     try:
         choices = getattr(response, "choices", None)
         if choices:
@@ -96,7 +94,6 @@ def _extract_llm_answer(response: Any) -> str:
     except Exception:
         pass
 
-    # Dict fallback
     response_dict = _as_dict(response)
 
     try:
@@ -112,12 +109,45 @@ def _extract_llm_answer(response: Any) -> str:
     return str(response_dict or response)
 
 
-def classify_question(question: str) -> AgentRoute:
+@lru_cache(maxsize=1)
+def get_embedding_model() -> SentenceTransformer:
     """
-    Simple deterministic router for v1.
+    Load the same embedding model used in Phase 5.
 
-    Later, this can be replaced with LLM tool calling or MCP routing.
+    Phase 5 used:
+    sentence-transformers/all-MiniLM-L6-v2
+
+    It creates 384-dimensional normalized vectors.
     """
+    return SentenceTransformer(EMBEDDING_MODEL_NAME)
+
+
+def embed_query(question: str) -> List[float]:
+    """
+    Generate the user question embedding.
+
+    This must match the Phase 5 notebook:
+    model.encode(question, normalize_embeddings=True)
+    """
+    model = get_embedding_model()
+
+    vector = model.encode(
+        question,
+        normalize_embeddings=True,
+    )
+
+    query_vector = [float(x) for x in vector.tolist()]
+
+    if len(query_vector) != 384:
+        raise ValueError(
+            f"Query embedding dimension is {len(query_vector)}, expected 384. "
+            f"Check EMBEDDING_MODEL_NAME. Current model: {EMBEDDING_MODEL_NAME}"
+        )
+
+    return query_vector
+
+
+def classify_question(question: str) -> AgentRoute:
     q = question.lower()
 
     analytics_terms = [
@@ -192,17 +222,10 @@ def classify_question(question: str) -> AgentRoute:
     if has_knowledge:
         return AgentRoute.RAG
 
-    # Default to BOTH because broad retail questions often need data + context.
     return AgentRoute.BOTH
 
 
 def ask_genie(question: str) -> Dict[str, Any]:
-    """
-    Ask Databricks Genie a structured analytics question.
-
-    This version avoids assuming that GenieMessage always has message_id.
-    Some SDK versions expose id instead of message_id.
-    """
     if not GENIE_SPACE_ID:
         raise ValueError("GENIE_SPACE_ID is not configured.")
 
@@ -280,27 +303,29 @@ def ask_genie(question: str) -> Dict[str, Any]:
 
 def search_retail_knowledge(question: str, num_results: int = 5) -> List[Dict[str, Any]]:
     """
-    Search the retail knowledge index for RAG context.
+    Query Vector Search using self-managed embeddings.
 
-    TEMP PHASE 6 FIX:
-    The current index is a Direct Vector Access Index without an embedding
-    model endpoint, so query_text cannot be used for ANN/vector search.
+    Your Phase 5 index was created with:
+    embedding_dimension=384
+    embedding_vector_column="chunk_vector"
 
-    For now, use FULL_TEXT search so the app can retrieve matching
-    policy/document chunks without needing query_vector.
+    Therefore, the app must generate the question vector and pass query_vector.
     """
     if not VECTOR_SEARCH_INDEX_NAME:
         raise ValueError("VECTOR_SEARCH_INDEX_NAME is not configured.")
 
+    query_vector = embed_query(question)
+
     results = w.vector_search_indexes.query_index(
         index_name=VECTOR_SEARCH_INDEX_NAME,
-        query_text=question,
-        query_type="FULL_TEXT",
+        query_vector=query_vector,
         columns=[
             "chunk_id",
             "source_type",
             "source_name",
+            "doc_title",
             "product_id",
+            "sku",
             "category",
             "store_id",
             "region",
@@ -364,10 +389,6 @@ def summarise_with_llm(
     genie_result: Optional[Dict[str, Any]],
     rag_context: Optional[List[Dict[str, Any]]],
 ) -> str:
-    """
-    Use the configured Databricks model serving endpoint to produce
-    a final business-friendly answer.
-    """
     context_payload = {
         "route": route.value,
         "genie_result": genie_result,
@@ -426,12 +447,6 @@ Now produce the final business-friendly answer.
 
 
 def run_retail_agent(question: str) -> AgentResponse:
-    """
-    Main Phase 6 agent orchestration function.
-
-    It decides which tool to use, calls Genie and/or Vector Search,
-    then asks the LLM endpoint to produce the final answer.
-    """
     cleaned_question = question.strip()
 
     if not cleaned_question:

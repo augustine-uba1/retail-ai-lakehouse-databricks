@@ -5,3 +5,4 @@ databricks-sdk
 databricks-vectorsearch
 pydantic
 python-multipart
+sentence-transformers
