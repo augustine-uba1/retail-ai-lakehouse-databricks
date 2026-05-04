@@ -10,6 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
+from agent import AgentRequest, run_retail_agent
 
 app = FastAPI(
     title="Retail Sales Intelligence App",
@@ -150,13 +151,12 @@ def ask_genie(question: str, conversation_id: Optional[str] = None) -> dict:
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request):
     return templates.TemplateResponse(
-        "index.html",
-        {
-            "request": request,
+        request=request,
+        name="index.html",
+        context={
             "app_title": "Retail Sales Intelligence",
         },
     )
-
 
 @app.get("/api/health")
 def health_check():
@@ -202,3 +202,14 @@ def chat(chat_request: ChatRequest):
         )
     except Exception as error:
         raise HTTPException(status_code=500, detail=str(error))
+    
+@app.post("/api/agent/ask")
+async def ask_retail_agent(payload: AgentRequest):
+    try:
+        result = run_retail_agent(payload.question)
+        return result.model_dump()
+    except Exception as e:
+        return {
+            "error": str(e),
+            "question": payload.question,
+        }

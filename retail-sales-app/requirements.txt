@@ -2,3 +2,6 @@ fastapi
 uvicorn
 jinja2
 databricks-sdk
+databricks-vectorsearch
+pydantic
+python-multipart

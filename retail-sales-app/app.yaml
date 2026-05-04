@@ -9,3 +9,12 @@ command:
 env:
   - name: GENIE_SPACE_ID
     valueFrom: genie-space
+
+  - name: VECTOR_SEARCH_ENDPOINT_NAME
+    value: retail_ai_vs_endpoint
+
+  - name: VECTOR_SEARCH_INDEX_NAME
+    value: retail_ai_demo_dev.ai.retail_knowledge_index
+
+  - name: LLM_ENDPOINT_NAME
+    value: databricks-gpt-oss-20b

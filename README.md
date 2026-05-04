@@ -148,3 +148,32 @@ databricks-qwen3-embedding-0-6b
 BGE Small EN v1.5
 GTE Large EN v1.5
 ```
+
+# Phase 6 target architecture (initial)
+
+```text
+User asks question
+        |
+        v
+/api/agent/ask
+        |
+        v
+Agent Router
+        |
+        |-- analytics question --> Genie
+        |
+        |-- knowledge question --> Vector Search RAG
+        |
+        |-- mixed question -----> Genie + Vector Search RAG
+        |
+        v
+LLM summarises final business answer
+        |
+        v
+App displays:
+- final answer
+- route used
+- Genie result
+- RAG context
+- recommended action
+```
