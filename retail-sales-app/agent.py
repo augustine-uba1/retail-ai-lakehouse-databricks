@@ -1,4 +1,5 @@
 import os
+import json
 from enum import Enum
 from functools import lru_cache
 from typing import Any, Dict, List, Optional
@@ -78,35 +79,113 @@ def _get_value(obj: Any, field_name: str, default: Any = None) -> Any:
     return getattr(obj, field_name, default)
 
 
+def _normalise_content_to_text(content: Any) -> str:
+    """
+    Convert model serving response content into a plain string.
+
+    Some Databricks model serving endpoints return message.content as a string.
+    Others, especially reasoning/chat models, may return a list of content blocks.
+    Pydantic AgentResponse.answer requires a string, so we normalise here.
+    """
+    if content is None:
+        return ""
+
+    if isinstance(content, str):
+        return content
+
+    if isinstance(content, list):
+        text_parts: List[str] = []
+
+        for item in content:
+            if isinstance(item, str):
+                text_parts.append(item)
+                continue
+
+            if not isinstance(item, dict):
+                continue
+
+            item_type = item.get("type")
+
+            # Do not expose reasoning blocks as the final answer.
+            if item_type == "reasoning":
+                continue
+
+            # Common content fields returned by chat/reasoning models.
+            for key in ["text", "content", "output_text"]:
+                value = item.get(key)
+
+                if isinstance(value, str) and value.strip():
+                    text_parts.append(value.strip())
+
+                elif isinstance(value, list):
+                    nested_text = _normalise_content_to_text(value)
+                    if nested_text.strip():
+                        text_parts.append(nested_text.strip())
+
+        if text_parts:
+            return "\n\n".join(text_parts)
+
+        # Last-resort fallback so we still return a string.
+        return json.dumps(content, indent=2)
+
+    if isinstance(content, dict):
+        for key in ["text", "content", "output_text"]:
+            value = content.get(key)
+
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+
+            if isinstance(value, list):
+                nested_text = _normalise_content_to_text(value)
+                if nested_text.strip():
+                    return nested_text.strip()
+
+        return json.dumps(content, indent=2)
+
+    return str(content)
+
+
 def _extract_llm_answer(response: Any) -> str:
+    """
+    Safely extract a plain text answer from a Databricks model serving response.
+    """
     if response is None:
         return "No response returned from the LLM endpoint."
 
+    # Normal SDK object path
     try:
         choices = getattr(response, "choices", None)
+
         if choices:
             first_choice = choices[0]
             message = getattr(first_choice, "message", None)
             content = getattr(message, "content", None)
 
-            if content:
-                return content
+            answer = _normalise_content_to_text(content)
+
+            if answer.strip():
+                return answer.strip()
     except Exception:
         pass
 
+    # Dict fallback
     response_dict = _as_dict(response)
 
     try:
         choices = response_dict.get("choices", [])
+
         if choices:
             message = choices[0].get("message", {})
             content = message.get("content")
-            if content:
-                return content
+
+            answer = _normalise_content_to_text(content)
+
+            if answer.strip():
+                return answer.strip()
     except Exception:
         pass
 
-    return str(response_dict or response)
+    return json.dumps(response_dict, indent=2) if response_dict else str(response)
 
 
 @lru_cache(maxsize=1)
@@ -502,6 +581,8 @@ def run_retail_agent(question: str) -> AgentResponse:
         genie_result=genie_result,
         rag_context=rag_context,
     )
+
+    answer = _normalise_content_to_text(answer)
 
     return AgentResponse(
         question=cleaned_question,
