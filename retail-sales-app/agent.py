@@ -280,10 +280,14 @@ def ask_genie(question: str) -> Dict[str, Any]:
 
 def search_retail_knowledge(question: str, num_results: int = 5) -> List[Dict[str, Any]]:
     """
-    Search the retail knowledge Vector Search index for RAG context.
+    Search the retail knowledge index for RAG context.
 
-    In Databricks Apps, use WorkspaceClient so the app service principal
-    identity can be used through the app resource permissions.
+    TEMP PHASE 6 FIX:
+    The current index is a Direct Vector Access Index without an embedding
+    model endpoint, so query_text cannot be used for ANN/vector search.
+
+    For now, use FULL_TEXT search so the app can retrieve matching
+    policy/document chunks without needing query_vector.
     """
     if not VECTOR_SEARCH_INDEX_NAME:
         raise ValueError("VECTOR_SEARCH_INDEX_NAME is not configured.")
@@ -291,6 +295,7 @@ def search_retail_knowledge(question: str, num_results: int = 5) -> List[Dict[st
     results = w.vector_search_indexes.query_index(
         index_name=VECTOR_SEARCH_INDEX_NAME,
         query_text=question,
+        query_type="FULL_TEXT",
         columns=[
             "chunk_id",
             "source_type",
