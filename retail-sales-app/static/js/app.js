@@ -1,4 +1,4 @@
-console.log("Phase 4 app.js loaded - debug 2");
+console.log("Phase 6 app.js loaded - agent mode");
 
 async function loadKpis() {
   console.log("Loading KPIs...");
@@ -28,7 +28,7 @@ function addMessage(type, text) {
 
   if (!chatWindow) {
     console.error("chat-window element was not found");
-    return;
+    return null;
   }
 
   const message = document.createElement("div");
@@ -37,12 +37,40 @@ function addMessage(type, text) {
 
   chatWindow.appendChild(message);
   chatWindow.scrollTop = chatWindow.scrollHeight;
+
+  return message;
+}
+
+function formatAgentResponse(data) {
+  let responseText = data.answer || "No answer returned from Retail AI Agent.";
+
+  if (data.route) {
+    responseText += `\n\nRoute used: ${data.route}`;
+  }
+
+  if (data.genie_result && data.genie_result.sql) {
+    responseText += "\n\nGenerated SQL:\n" + data.genie_result.sql;
+  }
+
+  if (data.rag_context && data.rag_context.length > 0) {
+    responseText += "\n\nRAG context used:";
+
+    data.rag_context.slice(0, 3).forEach((item, index) => {
+      const sourceName = item.source_name || "Unknown source";
+      const sourceType = item.source_type || "Unknown type";
+      const chunkText = item.chunk_text || "";
+
+      responseText += `\n\n${index + 1}. ${sourceName} (${sourceType})\n${chunkText}`;
+    });
+  }
+
+  return responseText;
 }
 
 async function handleChatSubmit(event) {
   event.preventDefault();
 
-  console.log("Chat form submitted");
+  console.log("Agent form submitted");
 
   const input = document.getElementById("question-input");
 
@@ -60,10 +88,10 @@ async function handleChatSubmit(event) {
   addMessage("user", question);
   input.value = "";
 
-  addMessage("assistant", "Asking Databricks Genie...");
+  const loadingMessage = addMessage("assistant", "Asking Retail AI Agent...");
 
   try {
-    const response = await fetch("/api/chat", {
+    const response = await fetch("/api/agent/ask", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -73,27 +101,27 @@ async function handleChatSubmit(event) {
 
     const data = await response.json();
 
-    console.log("Chat API response:", data);
+    console.log("Agent API response:", data);
 
-    const chatWindow = document.getElementById("chat-window");
-    const lastMessage = chatWindow.lastChild;
-
-    if (!response.ok) {
-      lastMessage.textContent =
-        data.detail || "Something went wrong calling Genie.";
+    if (!loadingMessage) {
       return;
     }
 
-    let responseText = data.answer || "No answer returned from Genie.";
-
-    if (data.generated_sql) {
-      responseText += "\n\nGenerated SQL:\n" + data.generated_sql;
+    if (!response.ok) {
+      loadingMessage.textContent =
+        data.detail || data.error || "Something went wrong calling the Retail AI Agent.";
+      return;
     }
 
-    lastMessage.textContent = responseText;
+    loadingMessage.textContent = formatAgentResponse(data);
   } catch (error) {
-    console.error("Error calling Genie:", error);
-    addMessage("assistant", `Error calling Genie: ${error}`);
+    console.error("Error calling Retail AI Agent:", error);
+
+    if (loadingMessage) {
+      loadingMessage.textContent = `Error calling Retail AI Agent: ${error}`;
+    } else {
+      addMessage("assistant", `Error calling Retail AI Agent: ${error}`);
+    }
   }
 }
 
@@ -111,5 +139,5 @@ document.addEventListener("DOMContentLoaded", () => {
 
   chatForm.addEventListener("submit", handleChatSubmit);
 
-  console.log("Chat form event listener attached");
+  console.log("Agent form event listener attached");
 });

@@ -42,11 +42,82 @@ VECTOR_SEARCH_INDEX_NAME = os.getenv("VECTOR_SEARCH_INDEX_NAME")
 LLM_ENDPOINT_NAME = os.getenv("LLM_ENDPOINT_NAME", "databricks-gpt-oss-20b")
 
 
+def _as_dict(obj: Any) -> Dict[str, Any]:
+    """
+    Convert Databricks SDK objects to dictionaries where possible.
+
+    Some SDK response objects expose .as_dict(), while others expose
+    fields as attributes. This helper lets us handle both safely.
+    """
+    if obj is None:
+        return {}
+
+    if isinstance(obj, dict):
+        return obj
+
+    if hasattr(obj, "as_dict"):
+        try:
+            return obj.as_dict()
+        except Exception:
+            return {}
+
+    return {}
+
+
+def _get_value(obj: Any, field_name: str, default: Any = None) -> Any:
+    """
+    Safely read a field from either a dict or an SDK object.
+    """
+    if obj is None:
+        return default
+
+    if isinstance(obj, dict):
+        return obj.get(field_name, default)
+
+    return getattr(obj, field_name, default)
+
+
+def _extract_llm_answer(response: Any) -> str:
+    """
+    Safely extract text from a Databricks model serving chat response.
+    """
+    if response is None:
+        return "No response returned from the LLM endpoint."
+
+    # Normal SDK object path
+    try:
+        choices = getattr(response, "choices", None)
+        if choices:
+            first_choice = choices[0]
+            message = getattr(first_choice, "message", None)
+            content = getattr(message, "content", None)
+
+            if content:
+                return content
+    except Exception:
+        pass
+
+    # Dict fallback
+    response_dict = _as_dict(response)
+
+    try:
+        choices = response_dict.get("choices", [])
+        if choices:
+            message = choices[0].get("message", {})
+            content = message.get("content")
+            if content:
+                return content
+    except Exception:
+        pass
+
+    return str(response_dict or response)
+
+
 def classify_question(question: str) -> AgentRoute:
     """
     Simple deterministic router for v1.
 
-    Later, we can replace this with LLM function calling or MCP routing.
+    Later, this can be replaced with LLM tool calling or MCP routing.
     """
     q = question.lower()
 
@@ -73,6 +144,10 @@ def classify_question(question: str) -> AgentRoute:
         "q2",
         "q3",
         "q4",
+        "month",
+        "week",
+        "quarter",
+        "year",
     ]
 
     knowledge_terms = [
@@ -90,6 +165,9 @@ def classify_question(question: str) -> AgentRoute:
         "terms",
         "refund",
         "return policy",
+        "damaged",
+        "electronics",
+        "sizing",
     ]
 
     reasoning_terms = [
@@ -120,6 +198,12 @@ def classify_question(question: str) -> AgentRoute:
 
 
 def ask_genie(question: str) -> Dict[str, Any]:
+    """
+    Ask Databricks Genie a structured analytics question.
+
+    This version avoids assuming that GenieMessage always has message_id.
+    Some SDK versions expose id instead of message_id.
+    """
     if not GENIE_SPACE_ID:
         raise ValueError("GENIE_SPACE_ID is not configured.")
 
@@ -128,29 +212,77 @@ def ask_genie(question: str) -> Dict[str, Any]:
         content=question,
     )
 
+    response_dict = _as_dict(response)
+
+    conversation_id = (
+        _get_value(response, "conversation_id")
+        or response_dict.get("conversation_id")
+    )
+
+    message_id = (
+        _get_value(response, "message_id")
+        or _get_value(response, "id")
+        or response_dict.get("message_id")
+        or response_dict.get("id")
+    )
+
+    status = (
+        _get_value(response, "status")
+        or response_dict.get("status")
+    )
+
+    attachments = (
+        _get_value(response, "attachments")
+        or response_dict.get("attachments")
+        or []
+    )
+
     text_outputs: List[str] = []
     sql_outputs: List[str] = []
 
-    for attachment in response.attachments or []:
-        text = getattr(attachment, "text", None)
-        if text and getattr(text, "content", None):
-            text_outputs.append(text.content)
+    for attachment in attachments:
+        attachment_dict = _as_dict(attachment)
 
-        query = getattr(attachment, "query", None)
-        if query:
-            query_text = getattr(query, "query", None)
-            if query_text:
-                sql_outputs.append(query_text)
+        text_attachment = (
+            _get_value(attachment, "text")
+            or attachment_dict.get("text")
+        )
+
+        query_attachment = (
+            _get_value(attachment, "query")
+            or attachment_dict.get("query")
+        )
+
+        text_content = (
+            _get_value(text_attachment, "content")
+            or _as_dict(text_attachment).get("content")
+        )
+
+        if text_content:
+            text_outputs.append(str(text_content))
+
+        sql_query = (
+            _get_value(query_attachment, "query")
+            or _as_dict(query_attachment).get("query")
+        )
+
+        if sql_query:
+            sql_outputs.append(str(sql_query))
 
     return {
-        "conversation_id": response.conversation_id,
-        "message_id": response.message_id,
+        "conversation_id": conversation_id,
+        "message_id": message_id,
+        "status": str(status) if status else None,
         "text": "\n\n".join(text_outputs).strip(),
         "sql": "\n\n".join(sql_outputs).strip(),
+        "raw_response": response_dict,
     }
 
 
 def search_retail_knowledge(question: str, num_results: int = 5) -> List[Dict[str, Any]]:
+    """
+    Search the retail knowledge Vector Search index for RAG context.
+    """
     if not VECTOR_SEARCH_ENDPOINT_NAME:
         raise ValueError("VECTOR_SEARCH_ENDPOINT_NAME is not configured.")
 
@@ -158,6 +290,7 @@ def search_retail_knowledge(question: str, num_results: int = 5) -> List[Dict[st
         raise ValueError("VECTOR_SEARCH_INDEX_NAME is not configured.")
 
     vs_client = VectorSearchClient()
+
     index = vs_client.get_index(
         endpoint_name=VECTOR_SEARCH_ENDPOINT_NAME,
         index_name=VECTOR_SEARCH_INDEX_NAME,
@@ -187,6 +320,7 @@ def search_retail_knowledge(question: str, num_results: int = 5) -> List[Dict[st
     rows = results.get("result", {}).get("data_array", [])
 
     documents: List[Dict[str, Any]] = []
+
     for row in rows:
         item = dict(zip(columns, row))
         documents.append(item)
@@ -200,6 +334,10 @@ def summarise_with_llm(
     genie_result: Optional[Dict[str, Any]],
     rag_context: Optional[List[Dict[str, Any]]],
 ) -> str:
+    """
+    Use the configured Databricks model serving endpoint to produce
+    a final business-friendly answer.
+    """
     context_payload = {
         "route": route.value,
         "genie_result": genie_result,
@@ -218,6 +356,7 @@ Rules:
 - Do not invent numbers.
 - If the Genie result does not contain a metric, say that the available data does not show it.
 - If RAG context is limited, say that only limited supporting context was found.
+- If the question is about policy, customer feedback, product documentation, or playbooks, rely mainly on RAG context.
 - Structure the answer as:
   1. Direct answer
   2. Evidence
@@ -253,51 +392,74 @@ Now produce the final business-friendly answer.
         temperature=0.1,
     )
 
-    return response.choices[0].message.content
+    return _extract_llm_answer(response)
 
 
 def run_retail_agent(question: str) -> AgentResponse:
-    route = classify_question(question)
+    """
+    Main Phase 6 agent orchestration function.
+
+    It decides which tool to use, calls Genie and/or Vector Search,
+    then asks the LLM endpoint to produce the final answer.
+    """
+    cleaned_question = question.strip()
+
+    if not cleaned_question:
+        raise ValueError("Question is required.")
+
+    route = classify_question(cleaned_question)
 
     genie_result: Optional[Dict[str, Any]] = None
     rag_context: Optional[List[Dict[str, Any]]] = None
     tool_trace: List[ToolTrace] = []
 
     if route in [AgentRoute.GENIE, AgentRoute.BOTH]:
-        genie_result = ask_genie(question)
+        genie_result = ask_genie(cleaned_question)
+
+        genie_preview = (
+            genie_result.get("text")
+            or genie_result.get("sql")
+            or "Genie returned a response, but no text or SQL preview was available."
+        )
+
         tool_trace.append(
             ToolTrace(
                 tool="genie",
                 status="success",
-                input=question,
-                output_preview=(genie_result.get("text") or "")[:500],
+                input=cleaned_question,
+                output_preview=str(genie_preview)[:500],
             )
         )
 
     if route in [AgentRoute.RAG, AgentRoute.BOTH]:
-        rag_context = search_retail_knowledge(question)
-        rag_preview = "\n".join(
-            str(doc.get("chunk_text", ""))[:200]
-            for doc in rag_context[:3]
-        )
+        rag_context = search_retail_knowledge(cleaned_question)
+
+        if rag_context:
+            rag_preview = "\n".join(
+                str(doc.get("chunk_text", ""))[:200]
+                for doc in rag_context[:3]
+            )
+        else:
+            rag_preview = "No matching RAG context returned from Vector Search."
+
         tool_trace.append(
             ToolTrace(
                 tool="vector_search_rag",
                 status="success",
-                input=question,
+                input=cleaned_question,
                 output_preview=rag_preview,
             )
         )
 
     answer = summarise_with_llm(
-        question=question,
+        question=cleaned_question,
         route=route,
         genie_result=genie_result,
         rag_context=rag_context,
     )
 
     return AgentResponse(
-        question=question,
+        question=cleaned_question,
         route=route,
         answer=answer,
         genie_result=genie_result,
