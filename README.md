@@ -1,48 +1,220 @@
 # Databricks Retail Sales AI App
 
 ## Overview
-This project builds a Databricks-native Retail Sales Intelligence platform using Unity Catalog, Delta Lake, AI/BI Genie, Vector Search, Mosaic AI agents, and Databricks Apps.
 
-## Phase 1: Retail Lakehouse Foundation
-This phase creates the governed retail lakehouse foundation using a medallion architecture:
-- Bronze: raw retail source data
-- Silver: cleaned and conformed data
-- Gold: business-ready analytics tables
-- AI: future RAG and Vector Search tables
-- Audit: reconciliation and data quality metrics
+This project is a Databricks-native **Retail Sales Intelligence App** that brings together:
+
+- Unity Catalog governed data
+- Delta Lake medallion architecture
+- Databricks AI/BI Genie for structured analytics
+- Databricks Vector Search for Retrieval-Augmented Generation (RAG)
+- Self-managed embeddings using `sentence-transformers`
+- FastAPI deployed as a Databricks App
+- An agentic orchestration layer that routes questions to Genie, RAG, or both
+
+The purpose of the project is to demonstrate how a retail company can use Databricks to build an AI-powered business assistant that can answer both analytical questions and knowledge/document-based questions from a single user interface.
+
+Example questions the app can support:
+
+```text
+What were the top 10 products by revenue?
+
+What does the return policy say about damaged electronics?
+
+Why did running shoe sales drop last month, and are customers complaining about sizing?
+```
+
+---
 
 ## Architecture
-Raw files → Bronze → Silver → Gold → Genie / Vector Search / App
 
-## How to deploy
-1. Configure Databricks CLI authentication
-2. Validate bundle
-3. Deploy bundle
-4. Run retail lakehouse foundation job
+The final architecture is:
 
-## Key tables
-- gold.fact_sales
-- gold.dim_product
-- gold.dim_store
-- gold.dim_customer
-- gold.fact_inventory
-- gold.fact_returns
-- gold.sales_targets
+```text
+User
+  |
+  v
+Databricks App
+  |
+  v
+FastAPI Backend
+  |
+  v
+Retail AI Agent Router
+  |
+  |-- Structured analytics question
+  |      -> Databricks Genie
+  |
+  |-- Policy / document / feedback question
+  |      -> Vector Search RAG
+  |
+  |-- Mixed analytics + context question
+  |      -> Genie + Vector Search RAG
+  |
+  v
+Databricks Model Serving Endpoint
+  |
+  v
+Final business-friendly answer
+```
 
-## Next phases
-- Phase 2: Databricks and FAST API Setup
-- Phase 3: Databricks App shell/FAST API
-- Phase 4: Genie Space
-- Phase 5: Vector Search RAG
-- Phase 6: Agentic orchestration
+The design separates responsibilities clearly:
 
-# Phase 5 Implementation — Create Vector Search for RAG - IMPORTANT NOTE
+| Component | Purpose |
+|---|---|
+| Unity Catalog | Governance, permissions, and table management |
+| Delta Lake | Storage layer for bronze, silver, gold, and AI tables |
+| Gold tables/views | Structured retail analytics layer |
+| Genie Space | Natural language to SQL over curated retail data |
+| Vector Search | Retrieval over policy, product, feedback, and playbook text |
+| FastAPI | Backend API for the Databricks App |
+| Agent router | Decides whether to use Genie, RAG, or both |
+| Model serving endpoint | Generates final business-friendly answer |
 
-## Overview
+---
 
-Phase 5 introduces a Retrieval-Augmented Generation (RAG) capability into the Retail AI Databricks App project.
+## Screenshots
 
-The purpose of this phase is to create a searchable knowledge base that can answer questions using semi-structured and unstructured retail business information such as:
+### Deployed Databricks App
+
+![Deployed Databricks App with Agentic Q&A](imgs-deployed-app/databricks-app-with-agentic-QandA.png)
+
+![Deployed Databricks App with RAG Answer](imgs-deployed-app/databricks-app-with-agentic-QandA2.png)
+
+![Deployed Databricks App with Mixed Agent Question](imgs-deployed-app/databricks-app-with-agentic-QandA3.png)
+
+### Swagger API Documentation
+
+![FastAPI Swagger API Docs](imgs-deployed-app/API-docs-swagger.png)
+
+### Databricks Genie
+
+![Databricks Genie Chat](imgs-deployed-app/databricks-genie-chat.png)
+
+![Databricks Genie Monitoring](imgs-deployed-app/databricks-genie-monitoring.png)
+
+### Databricks Vector Search
+
+![Databricks Vector Search](imgs-deployed-app/databricks-vector-search.png)
+
+### Self-Managed Vector Index
+
+![Self-Managed Vector Search Index](imgs-deployed-app/self-managed-index.png)
+
+---
+
+## Phases
+
+### Phase 1: Retail Lakehouse Foundation
+
+This phase creates the governed retail lakehouse foundation using a medallion architecture.
+
+```text
+Raw files
+  -> Bronze
+  -> Silver
+  -> Gold
+  -> Genie / Vector Search / Databricks App
+```
+
+The project uses a simple retail dataset with tables for:
+
+- Customers
+- Products
+- Stores
+- Sales
+- Inventory
+- Returns
+- Promotions
+- Sales targets
+- Retail knowledge chunks
+
+Key gold tables include:
+
+```text
+retail_ai_demo_dev.gold.fact_sales
+retail_ai_demo_dev.gold.dim_product
+retail_ai_demo_dev.gold.dim_store
+retail_ai_demo_dev.gold.dim_customer
+retail_ai_demo_dev.gold.fact_inventory
+retail_ai_demo_dev.gold.fact_returns
+retail_ai_demo_dev.gold.sales_targets
+```
+
+The goal of Phase 1 is to create a reliable structured analytics layer that later powers Genie and the app.
+
+---
+
+### Phase 2: FastAPI App Shell
+
+This phase creates the initial FastAPI application shell.
+
+The first version of the app includes:
+
+- A landing page
+- Mock KPI cards
+- Static HTML/CSS/JavaScript
+- Basic API endpoints
+- Local testing using Uvicorn
+
+Example local run command:
+
+```bash
+python -m uvicorn app:app --reload --host 127.0.0.1 --port 8000
+```
+
+Local test URLs:
+
+```text
+http://127.0.0.1:8000
+http://127.0.0.1:8000/docs
+```
+
+---
+
+### Phase 3: Databricks App Deployment
+
+This phase deploys the FastAPI application as a Databricks App.
+
+The app is configured using `app.yaml` and deployed into the Databricks workspace.
+
+The Databricks App gives the project a user-facing interface where business users can ask retail analytics and knowledge questions.
+
+---
+
+### Phase 4: Genie Integration
+
+This phase integrates Databricks AI/BI Genie.
+
+Genie is used for structured analytics questions over curated retail tables and views.
+
+Example Genie questions:
+
+```text
+What were the top 10 products by revenue?
+
+Which stores missed their sales target?
+
+Which product categories had the highest return rate?
+
+Show sales trend by week.
+```
+
+The app originally exposed a Genie-only endpoint:
+
+```text
+POST /api/chat
+```
+
+This endpoint is still available for direct Genie testing, but the main app flow now uses the Phase 6 agent endpoint.
+
+---
+
+### Phase 5: Vector Search RAG
+
+This phase creates the Retrieval-Augmented Generation capability.
+
+The project creates a retail knowledge base from text-based content such as:
 
 - Return and refund policies
 - Product guidance
@@ -51,255 +223,166 @@ The purpose of this phase is to create a searchable knowledge base that can answ
 - Store operating notes
 - Sales playbook guidance
 
-This complements the Genie integration from Phase 4.
-
-Where Genie is used for structured analytics over curated sales data, Vector Search is used to retrieve relevant business context from text-based knowledge sources.
-
-The long-term architecture is:
+The knowledge chunks are stored in:
 
 ```text
-User Question
-    ↓
-Databricks App
-    ↓
-RAG API Endpoint
-    ↓
-Databricks Vector Search
-    ↓
-Relevant knowledge chunks
-    ↓
-LLM-generated answer
+retail_ai_demo_dev.ai.retail_knowledge_chunks
 ```
 
-The original plan was to use Databricks-computed embeddings by creating a Vector Search index with an embedding model endpoint such as:
+The Vector Search index is:
 
 ```text
-databricks-gte-large-en
-databricks-qwen3-embedding-0-6b
+retail_ai_demo_dev.ai.retail_knowledge_index
 ```
 
-However, my current workspace only had the following serving endpoints available:
+The Vector Search endpoint is:
 
 ```text
-databricks-gpt-oss-120b
-databricks-gpt-oss-20b
-databricks-qwen3-next-80b-a3b-instruct
-databricks-gemma-3-12b
-databricks-meta-llama-3.1-405b-instruct
+retail_ai_vs_endpoint
 ```
 
-These are chat / instruct / text generation models, not embedding models.
+---
 
-Because no embedding endpoint was available, I have switched to a self-managed embedding approach.
+### Phase 6: Agentic Orchestration
 
-This means:
+This phase builds the agentic process.
+
+The app now exposes:
 
 ```text
-Text chunks are embedded manually using a notebook and using open source embedding model
-    ↓
-Embedding vectors are stored in a Delta table
-    ↓
-Vector Search index is created using the existing vector column
+POST /api/agent/ask
 ```
 
-**High Level Flow**
+This endpoint sends the user question to the Retail AI Agent.
+
+The agent decides whether the question should go to:
 
 ```text
-Retail knowledge text
-    ↓
-Clean and chunk text
-    ↓
-Store chunks in Delta table
-    ↓
-Generate embeddings using sentence-transformers
-    ↓
-Store embeddings in ARRAY<FLOAT> column
-    ↓
-Create Databricks Vector Search Delta Sync Index
-    ↓
-Query index using embedded user question
+Genie only
+RAG only
+Both Genie and RAG
 ```
 
-## Example Questions
+Example routing:
 
-The Vector Search index can now answer retrieval-style questions such as:
+| User question | Route |
+|---|---|
+| What were the top 10 products by revenue? | Genie |
+| What does the return policy say about damaged electronics? | RAG |
+| Why did running shoe sales drop last month, and are customers complaining about sizing? | Both |
 
-```text
-What is the return policy for damaged electronics?
+---
 
-What does the sales playbook recommend when footwear sales decline?
+## How RAG Works
 
-What are customers saying about running shoe sizing?
+RAG means **Retrieval-Augmented Generation**.
 
-Summarise customer feedback about wireless headphones.
+In this project, the RAG flow works like this:
 
-What were the terms of the spring footwear promotion?
-```
-
-## Future Improvement
-
-Once a Databricks embedding endpoint becomes available in my current workspace, the Vector Search index can be recreated using Databricks-computed embeddings.
-If your workspace currently has embedding models available you can use that instead. Databricks documents that these models may are not available to some regions.
-
-Example embedding models endpoint options:
-
-```text
-databricks-gte-large-en
-databricks-qwen3-embedding-0-6b
-BGE Small EN v1.5
-GTE Large EN v1.5
-```
-
-# Phase 6 target architecture (initial) - IMPORTANT NOTE
-
-This phase now provides 
-
-**Databricks App → Agent layer → Genie for structured analytics + Vector Search for RAG → governed retail data in Unity Catalog.**
-
-Recall, this project uses `Self-managed embedding` RAG using Databricks Vector Search.
-
-The goal was to allow users to ask natural language questions and have the app decide whether to answer using:
-
-1. Databricks Genie
-   For structured analytics questions over retail sales data.
-
-1. Databricks Vector Search RAG
-   For knowledge-based questions over policy documents, product notes, customer feedback, and playbooks.
-
-1. Both Genie and RAG
-   For mixed analytical + contextual questions.
-
-This turns the app from a basic Genie integration into a more intelligent retail assistant.
 ```text
 User question
-   |
-   v
-FastAPI endpoint: /api/agent/ask
-   |
-   v
-Retail Agent Router
-   |
-   |-- Structured analytics question
-   |      -> Databricks Genie
-   |
-   |-- Policy / document / feedback question
-   |      -> Vector Search RAG
-   |
-   |-- Mixed question
-   |      -> Genie + Vector Search RAG
-   |
-   v
-LLM summarisation endpoint
-   |
-   v
-Final business-friendly answer returned to the app
+  |
+  v
+Generate question embedding
+  |
+  v
+Query Databricks Vector Search using query_vector
+  |
+  v
+Retrieve relevant knowledge chunks
+  |
+  v
+Send question + retrieved chunks to LLM
+  |
+  v
+Generate grounded answer
 ```
 
-### Example Question:
-`What were the top 10 products by revenue?`
+The important project details are:
 
-This gets routed to:
-`Genie`
+| Item | Value |
+|---|---|
+| Knowledge table | `retail_ai_demo_dev.ai.retail_knowledge_chunks` |
+| Vector Search index | `retail_ai_demo_dev.ai.retail_knowledge_index` |
+| Embedding column | `chunk_vector` |
+| Embedding model | `sentence-transformers/all-MiniLM-L6-v2` |
+| Vector dimension | `384` |
+| Query method | `query_vector` |
 
-`What does the return policy say about damaged electronics?`
+---
 
-This gets routed to:
-`RAG` Because it is asking about policy documentation.
+## Self-Managed Embeddings
 
-`Why did running shoe sales drop last month, and are customers complaining about sizing?`
+This project uses **self-managed embeddings**.
 
-This gets routed:
-`Both Genie and RAG` Because it needs structured sales data and unstructured customer feedback context.
+A Databricks-managed embedding endpoint was not available in the workspace at the time of implementation, so the embeddings were generated manually using `sentence-transformers`.
 
-So, basically for RAG (Retrieval-Augumented Generation) in this project, the process works like this:
-
-1. Retrieve relevant context from a knowledge base.
-1. Pass that context to an LLM.
-1. Ask the LLM to generate an answer grounded in the retrieved context.
-
-Final Project looks like this:
-
-- Knowledge base:
-retail_ai_demo_dev.ai.retail_knowledge_chunks
-
-- Vector Search index:
-retail_ai_demo_dev.ai.retail_knowledge_index
-
-- Embedding column:
-chunk_vector
-
-- Embedding model:
-sentence-transformers/all-MiniLM-L6-v2
-
-- Vector dimension:
-384
-
-What does the return policy say about damaged electronics?
-
-The App does this:
-1. Takes the user question.
-1. Generates a 384-dimensional embedding using all-MiniLM-L6-v2.
-1. Sends that embedding as query_vector to Databricks Vector Search.
-1. Retrieves the most relevant retail knowledge chunks.
-1. Sends the retrieved chunks plus the user question to the LLM.
-1. Returns a final answer to the user.
-
-## Important design decision: self-managed embeddings
-
-In Phase 5, I have not use a Databricks-managed embedding endpoint attached to the index.
-
-Instead, I have used a self-managed embedding approach:
+The Phase 5 notebook used:
 
 ```python
+from sentence_transformers import SentenceTransformer
+
 model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
-vectors = model.encode(texts, normalize_embeddings=True)
+
+vectors = model.encode(
+    texts,
+    normalize_embeddings=True
+)
 ```
 
-The generated embeddings were saved into the Delta table column:
+The generated embeddings were stored in the Delta table column:
 
 ```text
 chunk_vector
 ```
 
-Then the Vector Search index was created using:
+The Vector Search index was created using:
 
 ```python
 embedding_dimension=384
 embedding_vector_column="chunk_vector"
 ```
 
-Because of this, the app cannot query the index using only:
+Because the index uses self-managed embeddings, the app cannot query the index using only:
 
 ```python
 query_text=question
 ```
 
-Instead, the app must generate the query embedding itself and query using:
+Instead, the app must generate the user question embedding and query the index using:
 
 ```python
 query_vector=question_vector
 ```
 
-# Current Agent Tools
+This was one of the key lessons from the project.
 
-The agent currently has two tools:
+---
 
-## Tool 1 — Genie tool
+## How the Agent Works
 
-Used for structured questions such as:
+The current agent is a single-agent orchestrator.
+
+It uses deterministic routing logic to classify the question.
+
+### Genie route
+
+Used for structured analytics questions.
+
+Examples:
 
 ```text
 What were the top 10 products by revenue?
 Which stores missed their sales target?
-What was the return rate by category?
 Which products had the highest sales last month?
+What was the return rate by category?
 ```
 
-The Genie tool calls the configured Databricks Genie Space and returns structured analytics results.
+### RAG route
 
-## Tool 2 — Vector Search RAG tool
+Used for policy, product knowledge, playbook, and customer feedback questions.
 
-Used for knowledge/document questions such as:
+Examples:
 
 ```text
 What does the return policy say about damaged electronics?
@@ -308,39 +391,268 @@ What does the sales playbook say about upselling?
 What guidance exists for handling product complaints?
 ```
 
-The RAG tool
+### Both route
+
+Used for mixed questions that require both structured data and unstructured context.
+
+Examples:
 
 ```text
-1. Embeds the user question.
-2. Queries the Vector Search index using query_vector.
-3. Retrieves relevant chunks.
-4. Sends the chunks to the LLM for final answer generation.
+Why did running shoe sales drop last month, and are customers complaining about sizing?
+
+Which products are trending down, and what customer feedback explains the drop?
 ```
 
-## Current API endpoints
+The final answer is generated by passing the tool outputs to a Databricks model serving endpoint.
 
-The app now has these key endpoints (deployed using FAST API):
+---
 
-```text
-GET /api/health
+## API Endpoints
+
+The deployed FastAPI app exposes the following endpoints.
+
+### `GET /`
+
+Renders the retail app landing page.
+
+---
+
+### `GET /api/health`
+
+Returns app health and configuration status.
+
+Example response:
+
+```json
+{
+  "status": "ok",
+  "app": "Retail Sales Intelligence App",
+  "phase": "Phase 6 - Agentic Process with Genie and Vector Search RAG",
+  "genie_space_configured": true,
+  "vector_search_index_configured": true,
+  "llm_endpoint_configured": true,
+  "embedding_model_configured": true
+}
 ```
 
-Used to check that the app is running and that key environment variables are configured.
+---
 
-```text
-GET /api/kpis
-```
+### `GET /api/kpis`
 
 Returns mocked KPI values for the landing page.
 
-```text
-POST /api/chat
+Example response:
+
+```json
+{
+  "total_sales": "£1.24m",
+  "orders": "18,420",
+  "returns_rate": "4.8%",
+  "low_stock_items": 37
+}
 ```
 
-Initial older Phase 4 Genie-only endpoint (Phase 4, when Genie alone was integrated into the App)
+---
 
-```text
-POST /api/agent/ask
+### `POST /api/chat`
+
+Legacy Phase 4 endpoint.
+
+This sends the question directly to Databricks Genie.
+
+Example request:
+
+```json
+{
+  "question": "What were the top 10 products by revenue?"
+}
 ```
 
-The new Phase 6 agent endpoint, now the main endpoint, that queries both genie and our vector search.
+---
+
+### `POST /api/agent/ask`
+
+Main Phase 6 endpoint.
+
+This sends the question to the Retail AI Agent.
+
+Example request:
+
+```json
+{
+  "question": "What does the return policy say about damaged electronics?"
+}
+```
+
+Example response shape:
+
+```json
+{
+  "question": "What does the return policy say about damaged electronics?",
+  "route": "rag",
+  "answer": "...",
+  "genie_result": null,
+  "rag_context": [],
+  "tool_trace": []
+}
+```
+
+---
+
+## Deployment Notes
+
+The Databricks App uses `app.yaml`.
+
+Example configuration:
+
+```yaml
+command:
+  - uvicorn
+  - app:app
+  - --host
+  - 0.0.0.0
+  - --port
+  - "$DATABRICKS_APP_PORT"
+
+env:
+  - name: GENIE_SPACE_ID
+    valueFrom: genie-space
+
+  - name: VECTOR_SEARCH_INDEX_NAME
+    valueFrom: vector-search-index
+
+  - name: EMBEDDING_MODEL_NAME
+    value: sentence-transformers/all-MiniLM-L6-v2
+
+  - name: LLM_ENDPOINT_NAME
+    value: databricks-gpt-oss-20b
+```
+
+The app requires the following Databricks resources:
+
+- Databricks App
+- Genie Space resource
+- Vector Search index resource
+- Model serving endpoint
+- Unity Catalog permissions for the app service principal
+
+---
+
+## Requirements
+
+The app requires the following Python packages:
+
+```text
+fastapi
+uvicorn
+jinja2
+databricks-sdk
+databricks-vectorsearch
+pydantic
+python-multipart
+sentence-transformers
+```
+
+---
+
+## Lessons Learned
+
+### 1. Genie and RAG solve different problems
+
+Genie is strong for structured analytics questions.
+
+Vector Search RAG is better for policy, product knowledge, playbook guidance, and customer feedback.
+
+The agentic layer becomes valuable because it decides which capability to use for each question.
+
+---
+
+### 2. Self-managed embeddings require query vectors
+
+Because the Vector Search index was created using an existing `chunk_vector` column, the app must generate the user question embedding itself.
+
+This means the app queries Vector Search using:
+
+```python
+query_vector=question_vector
+```
+
+not:
+
+```python
+query_text=question
+```
+
+---
+
+### 3. The embedding model must match
+
+The same model used to embed the documents must be used to embed the user question.
+
+This project uses:
+
+```text
+sentence-transformers/all-MiniLM-L6-v2
+```
+
+which creates 384-dimensional vectors.
+
+---
+
+### 4. Databricks App resource permissions matter
+
+The Databricks App service principal needs access to:
+
+- Genie Space
+- Vector Search index
+- Model serving endpoint
+- Unity Catalog catalog/schema/table objects
+
+Without these permissions, the app may start successfully but fail when calling Genie, Vector Search, or model serving.
+
+---
+
+### 5. LLM response formats can vary
+
+Some model serving endpoints return response content as a string.
+
+Others return response content as a list of content blocks.
+
+The app normalises the model response into a plain string before returning it to the frontend.
+
+---
+
+## Future Improvements
+
+Potential improvements include:
+
+- Replace keyword-based routing with LLM-based tool selection
+- Add MLflow tracing for agent calls
+- Add evaluation sets for Genie, RAG, and mixed questions
+- Add source citations in the frontend UI
+- Add conversation history
+- Add persistent chat sessions
+- Improve frontend styling
+- Add role-based access control for different user groups
+- Add richer KPI cards from live gold tables
+- Add charts and tables for Genie query results
+- Upgrade to a Databricks-managed embedding endpoint when available
+- Explore Mosaic AI Agent Framework or MCP-based tool orchestration
+
+---
+
+## Project Status
+
+Current status:
+
+```text
+Databricks App: Working
+Genie integration: Working
+Vector Search index: Working
+Self-managed embedding RAG: Working
+Agentic routing: Working
+Frontend integration: Working
+Swagger API docs: Working
+```
+
+This project demonstrates an end-to-end Databricks-native AI application pattern for combining structured analytics, retrieval-augmented generation, and agentic orchestration in a single deployed app.
