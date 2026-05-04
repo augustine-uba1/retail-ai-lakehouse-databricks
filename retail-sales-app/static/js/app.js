@@ -42,6 +42,10 @@ function addMessage(type, text) {
 }
 
 function formatAgentResponse(data) {
+  if (data.error) {
+  return `Agent error: ${data.error}`;
+  }
+
   let responseText = data.answer || "No answer returned from Retail AI Agent.";
 
   if (data.route) {

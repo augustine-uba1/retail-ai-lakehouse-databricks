@@ -4,7 +4,6 @@ from typing import Any, Dict, List, Optional
 
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.service.serving import ChatMessage, ChatMessageRole
-from databricks.vector_search.client import VectorSearchClient
 from pydantic import BaseModel
 
 
@@ -282,21 +281,15 @@ def ask_genie(question: str) -> Dict[str, Any]:
 def search_retail_knowledge(question: str, num_results: int = 5) -> List[Dict[str, Any]]:
     """
     Search the retail knowledge Vector Search index for RAG context.
-    """
-    if not VECTOR_SEARCH_ENDPOINT_NAME:
-        raise ValueError("VECTOR_SEARCH_ENDPOINT_NAME is not configured.")
 
+    In Databricks Apps, use WorkspaceClient so the app service principal
+    identity can be used through the app resource permissions.
+    """
     if not VECTOR_SEARCH_INDEX_NAME:
         raise ValueError("VECTOR_SEARCH_INDEX_NAME is not configured.")
 
-    vs_client = VectorSearchClient()
-
-    index = vs_client.get_index(
-        endpoint_name=VECTOR_SEARCH_ENDPOINT_NAME,
+    results = w.vector_search_indexes.query_index(
         index_name=VECTOR_SEARCH_INDEX_NAME,
-    )
-
-    results = index.similarity_search(
         query_text=question,
         columns=[
             "chunk_id",
@@ -309,15 +302,47 @@ def search_retail_knowledge(question: str, num_results: int = 5) -> List[Dict[st
             "chunk_text",
         ],
         num_results=num_results,
-        query_type="hybrid",
     )
 
-    columns = [
-        col["name"]
-        for col in results.get("manifest", {}).get("columns", [])
-    ]
+    result_dict = _as_dict(results)
 
-    rows = results.get("result", {}).get("data_array", [])
+    manifest = (
+        _get_value(results, "manifest")
+        or result_dict.get("manifest")
+        or {}
+    )
+
+    result_data = (
+        _get_value(results, "result")
+        or result_dict.get("result")
+        or {}
+    )
+
+    manifest_dict = _as_dict(manifest)
+    result_data_dict = _as_dict(result_data)
+
+    raw_columns = (
+        _get_value(manifest, "columns")
+        or manifest_dict.get("columns")
+        or []
+    )
+
+    columns: List[str] = []
+
+    for col in raw_columns:
+        col_name = (
+            _get_value(col, "name")
+            or _as_dict(col).get("name")
+        )
+
+        if col_name:
+            columns.append(str(col_name))
+
+    rows = (
+        _get_value(result_data, "data_array")
+        or result_data_dict.get("data_array")
+        or []
+    )
 
     documents: List[Dict[str, Any]] = []
 
