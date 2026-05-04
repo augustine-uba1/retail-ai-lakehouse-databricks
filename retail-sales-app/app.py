@@ -3,6 +3,7 @@ import os
 from datetime import timedelta
 from typing import Any, Optional
 
+from agent import AgentRequest, run_retail_agent
 from databricks.sdk import WorkspaceClient
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse
@@ -10,12 +11,11 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
-from agent import AgentRequest, run_retail_agent
 
 app = FastAPI(
     title="Retail Sales Intelligence App",
-    description="Databricks App shell for Genie, RAG, and Agentic AI integration",
-    version="0.2.0",
+    description="Databricks App for Genie, Vector Search RAG, and agentic AI integration",
+    version="0.6.0",
 )
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -93,12 +93,16 @@ def extract_genie_response(message: dict) -> dict:
 def ask_genie(question: str, conversation_id: Optional[str] = None) -> dict:
     """
     Send a user question to the configured Databricks Genie Space.
+
+    This endpoint is kept for direct Genie-only testing.
+    The main Phase 6 app flow should use /api/agent/ask.
     """
     genie_space_id = os.getenv("GENIE_SPACE_ID")
 
     if not genie_space_id:
         raise ValueError(
-            "GENIE_SPACE_ID is not set. Check app.yaml and the Databricks App Genie resource."
+            "GENIE_SPACE_ID is not set. "
+            "Check app.yaml and the Databricks App Genie resource."
         )
 
     workspace_client = WorkspaceClient()
@@ -127,13 +131,18 @@ def ask_genie(question: str, conversation_id: Optional[str] = None) -> dict:
             result_response = workspace_client.genie.get_message_attachment_query_result(
                 space_id=genie_space_id,
                 conversation_id=message.get("conversation_id"),
-                message_id=message.get("id"),
+                message_id=message.get("id") or message.get("message_id"),
                 attachment_id=parsed["query_attachment_id"],
             )
+
             query_result = object_to_dict(result_response)
+
         except Exception as error:
             query_result = {
-                "error": f"Genie response was received, but query result retrieval failed: {str(error)}"
+                "error": (
+                    "Genie response was received, but query result retrieval failed: "
+                    f"{str(error)}"
+                )
             }
 
     return {
@@ -142,7 +151,7 @@ def ask_genie(question: str, conversation_id: Optional[str] = None) -> dict:
         "generated_sql": parsed.get("sql"),
         "query_result": query_result,
         "conversation_id": message.get("conversation_id"),
-        "message_id": message.get("id"),
+        "message_id": message.get("id") or message.get("message_id"),
         "status": message.get("status"),
         "source": "databricks_genie",
     }
@@ -150,6 +159,12 @@ def ask_genie(question: str, conversation_id: Optional[str] = None) -> dict:
 
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request):
+    """
+    Render the Databricks Retail Sales Intelligence landing page.
+
+    Uses the newer TemplateResponse signature:
+    request=..., name=..., context=...
+    """
     return templates.TemplateResponse(
         request=request,
         name="index.html",
@@ -158,20 +173,27 @@ def home(request: Request):
         },
     )
 
+
 @app.get("/api/health")
 def health_check():
+    """
+    Health check used to validate Phase 6 app configuration.
+    """
     return {
         "status": "ok",
         "app": "Retail Sales Intelligence App",
-        "phase": "Phase 4 - Genie Integration",
+        "phase": "Phase 6 - Agentic Process with Genie and Vector Search RAG",
         "genie_space_configured": bool(os.getenv("GENIE_SPACE_ID")),
+        "vector_search_index_configured": bool(os.getenv("VECTOR_SEARCH_INDEX_NAME")),
+        "llm_endpoint_configured": bool(os.getenv("LLM_ENDPOINT_NAME")),
+        "embedding_model_configured": bool(os.getenv("EMBEDDING_MODEL_NAME")),
     }
 
 
 @app.get("/api/kpis")
 def get_kpis():
     """
-    Temporary mocked KPIs.
+    Temporary mocked KPIs for the landing page.
 
     Later this can query Databricks gold tables directly or be replaced
     with a Genie-backed KPI endpoint.
@@ -187,8 +209,10 @@ def get_kpis():
 @app.post("/api/chat")
 def chat(chat_request: ChatRequest):
     """
-    Phase 4:
-    Route structured retail analytics questions to Databricks Genie.
+    Phase 4 compatibility endpoint.
+
+    This routes questions directly to Databricks Genie only.
+    For Phase 6 agentic routing, use /api/agent/ask.
     """
     question = chat_request.question.strip()
 
@@ -200,16 +224,29 @@ def chat(chat_request: ChatRequest):
             question=question,
             conversation_id=chat_request.conversation_id,
         )
+
     except Exception as error:
         raise HTTPException(status_code=500, detail=str(error))
-    
+
+
 @app.post("/api/agent/ask")
 async def ask_retail_agent(payload: AgentRequest):
+    """
+    Phase 6 endpoint.
+
+    Routes the user question to:
+    - Genie for structured analytics
+    - Vector Search RAG for policy/document/product/customer feedback questions
+    - Both tools for mixed analytical + contextual questions
+    """
+    question = payload.question.strip()
+
+    if not question:
+        raise HTTPException(status_code=400, detail="Question is required.")
+
     try:
-        result = run_retail_agent(payload.question)
+        result = run_retail_agent(question)
         return result.model_dump()
-    except Exception as e:
-        return {
-            "error": str(e),
-            "question": payload.question,
-        }
+
+    except Exception as error:
+        raise HTTPException(status_code=500, detail=str(error))

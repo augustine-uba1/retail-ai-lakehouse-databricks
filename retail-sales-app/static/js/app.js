@@ -43,7 +43,7 @@ function addMessage(type, text) {
 
 function formatAgentResponse(data) {
   if (data.error) {
-  return `Agent error: ${data.error}`;
+    return `Agent error: ${data.error}`;
   }
 
   let responseText = data.answer || "No answer returned from Retail AI Agent.";
@@ -60,7 +60,7 @@ function formatAgentResponse(data) {
     responseText += "\n\nRAG context used:";
 
     data.rag_context.slice(0, 3).forEach((item, index) => {
-      const sourceName = item.source_name || "Unknown source";
+      const sourceName = item.source_name || item.doc_title || "Unknown source";
       const sourceType = item.source_type || "Unknown type";
       const chunkText = item.chunk_text || "";
 
